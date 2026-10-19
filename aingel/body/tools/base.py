@@ -29,7 +29,7 @@ class ToolSpec:
         if not isinstance(self.name, str) or not self.name.strip():
             raise ValueError("Tool name must be non-empty")
         if not isinstance(self.risk, Risk):
-            raise ValueError("Tool risk must be a Risk value")
+            raise TypeError("Tool risk must be a Risk value")
         if self.schema is not None and self.schema.get("type", "object") != "object":
             raise ValueError("Tool argument schema must describe an object")
 

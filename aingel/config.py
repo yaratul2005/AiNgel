@@ -33,7 +33,7 @@ class AgentConfig:
 def _section(data: dict[str, Any], name: str, allowed: set[str]) -> dict[str, Any]:
     value = data.get(name, {})
     if not isinstance(value, dict):
-        raise ValueError(f"Configuration section [{name}] must be a table")
+        raise TypeError(f"Configuration section [{name}] must be a table")
     unknown = set(value) - allowed
     if unknown:
         names = ", ".join(sorted(unknown))
@@ -44,7 +44,7 @@ def _section(data: dict[str, Any], name: str, allowed: set[str]) -> dict[str, An
 def parse_config(data: dict[str, Any]) -> AgentConfig:
     """Validate TOML-shaped data and return immutable settings."""
     if not isinstance(data, dict):
-        raise ValueError("Configuration root must be a TOML table")
+        raise TypeError("Configuration root must be a TOML table")
     unknown = set(data) - {"heartbeat", "conscience"}
     if unknown:
         raise ValueError(f"Unknown top-level setting(s): {', '.join(sorted(unknown))}")

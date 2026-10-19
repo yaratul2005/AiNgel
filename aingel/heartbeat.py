@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .brain.base import Brain, Response, ToolCall
 from .body.registry import ToolRegistry
+from .brain.base import Brain, Response, ToolCall
 from .conscience.audit import AuditLog
 from .conscience.budgets import Budget
 from .conscience.permissions import Conscience, Verdict
+from .soul.state import Soul
 
 
 @dataclass(frozen=True)
@@ -88,7 +89,7 @@ def run_tick(
             try:
                 tool.run(**call.args)
                 outcome = "executed"
-            except Exception as error:
+            except Exception as error:  # noqa: BLE001 - tool implementations may raise arbitrary errors
                 decision = type(decision)(
                     decision.verdict,
                     f"tool execution failed: {type(error).__name__}",
@@ -100,8 +101,35 @@ def run_tick(
         result.actions.append(ActionResult(call.name, decision.verdict, decision.reason, outcome))
         if conscience.killswitch.engaged:
             result.stopped_reason = "kill switch is engaged"
+            if len(result.actions) < len(response.tool_calls):
+                continue
             break
         if budget.exhausted and len(response.tool_calls) > len(result.actions):
             result.stopped_reason = "step budget exhausted"
 
+    return result
+
+
+def run_soul_tick(
+    brain: Brain,
+    tools: ToolRegistry,
+    conscience: Conscience,
+    budget: Budget,
+    audit: AuditLog,
+    soul: Soul,
+    *,
+    memory_query: str = "",
+) -> TickResult:
+    """Run one tick using persistent soul context and store action reflections."""
+    result = run_tick(
+        brain,
+        tools,
+        conscience,
+        budget,
+        audit,
+        system=soul.system_prompt(),
+        context=soul.build_context(memory_query),
+    )
+    for action in result.actions:
+        soul.reflect_action(action.tool_name, action.verdict.value, action.outcome)
     return result
