@@ -8,7 +8,7 @@ At the baseline commit, the repository was a design document containing only `Re
 
 ## Current implementation status
 
-The offline foundation and first soul slice are now present: package metadata, TOML config validation, brain/tool contracts, a registry, a tick runner, step budget, kill switch, conscience decisions, JSONL audit, identity, bounded affect, SQLite memory, and action reflection. The CLI carries memory across two fake-brain ticks. A read-only workspace file tool now confines paths to an operator-selected root, rejects escaping symlinks, and caps bytes read; its in-process checks are not an OS sandbox, and it is not enabled in sandbox mode. Tests cover the earlier safety boundary and soul state; CI is configured to run Ruff and pytest on Python 3.11 through 3.13. A live model adapter, write-capable external tool, approval UI, and OS sandbox remain unimplemented.
+The offline foundation and first soul slice are now present: package metadata, TOML config validation, brain/tool contracts, a registry, a tick runner, step budget, kill switch, conscience decisions, JSONL audit, identity, bounded affect, SQLite memory, and action reflection. The CLI carries memory across two fake-brain ticks. A read-only workspace file tool confines paths to an operator-selected root, rejects escaping symlinks, and caps bytes read; its in-process checks are not an OS sandbox, and it is not enabled in sandbox mode. Successful tool output is represented separately, bounded, and formatted as explicitly untrusted context for a later tick; audit events omit content. Tests cover the earlier safety boundary and soul state; CI is configured to run Ruff and pytest on Python 3.11 through 3.13. A live model adapter, write-capable external tool, approval UI, and OS sandbox remain unimplemented.
 
 ## Success criteria
 
@@ -74,6 +74,7 @@ Track progress with these observable outcomes:
 ### 5. Add narrowly scoped tools
 
 - [x] Add a read-only workspace file tool with path normalization, symlink/traversal defenses, a size limit, and an explicit low-risk label. It is only available to an integrating application and is denied in sandbox mode until a real OS isolation boundary exists.
+- [x] Keep successful tool output separate from audit and trusted state, bound it, and expose a labeled untrusted context formatter for the next tick.
 - Add workspace-only file writes only after authorization semantics and side effects are reviewed.
 - Add approval handling for medium/high risk actions only after a real human approval channel is defined.
 - Add isolated execution only after choosing and verifying an actual OS/container sandbox boundary; do not describe a subprocess as a sandbox.

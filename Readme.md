@@ -182,7 +182,7 @@ reader = WorkspaceReadTool(Path("./workspace"), max_bytes=32_768)
 tools = ToolRegistry([reader])
 ```
 
-The tool accepts a relative `path`, rejects traversal and symlinks that resolve outside the configured root, and limits reads to 32 KiB in this example. It is low-risk and available in supervised mode; sandbox mode intentionally rejects it because process-level path checks do not provide OS isolation. Treat returned file contents as untrusted data.
+The tool accepts a relative `path`, rejects traversal and symlinks that resolve outside the configured root, and limits reads to 32 KiB in this example. It is low-risk and available in supervised mode; sandbox mode intentionally rejects it because process-level path checks do not provide OS isolation. Successful tool text is returned separately as `TickResult.tool_outputs`, capped at 16,000 characters per result. An integrating caller can pass `result.untrusted_context()` as context to a later tick; the helper labels the content as untrusted JSON data, and audit events omit it.
 
 ---
 
