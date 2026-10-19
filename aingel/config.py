@@ -42,6 +42,14 @@ class BrainConfig:
 
 
 @dataclass(frozen=True)
+class StorageConfig:
+    """Optional persistent paths for memory and action audit records."""
+
+    database_path: Path | None = None
+    audit_path: Path | None = None
+
+
+@dataclass(frozen=True)
 class AgentConfig:
     """Validated runtime configuration."""
 
@@ -49,6 +57,7 @@ class AgentConfig:
     conscience: ConscienceConfig = ConscienceConfig()
     body: BodyConfig = BodyConfig()
     brain: BrainConfig = BrainConfig()
+    storage: StorageConfig = StorageConfig()
 
 
 def _section(data: dict[str, Any], name: str, allowed: set[str]) -> dict[str, Any]:
@@ -66,7 +75,7 @@ def parse_config(data: dict[str, Any], *, base_dir: Path | None = None) -> Agent
     """Validate TOML-shaped data and return immutable settings."""
     if not isinstance(data, dict):
         raise TypeError("Configuration root must be a TOML table")
-    unknown = set(data) - {"heartbeat", "conscience", "body", "brain"}
+    unknown = set(data) - {"heartbeat", "conscience", "body", "brain", "storage"}
     if unknown:
         raise ValueError(f"Unknown top-level setting(s): {', '.join(sorted(unknown))}")
 
@@ -125,11 +134,30 @@ def parse_config(data: dict[str, Any], *, base_dir: Path | None = None) -> Agent
     ):
         raise ValueError("brain.timeout must be a positive number of seconds")
 
+    storage = _section(data, "storage", {"database_path", "audit_path"})
+
+    def storage_path(setting: str) -> Path | None:
+        value = storage.get(setting)
+        if value is None:
+            return None
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"storage.{setting} must be a non-empty path string")
+        path = Path(value).expanduser()
+        if not path.is_absolute() and base_dir is not None:
+            path = base_dir / path
+        return path.resolve()
+
+    database_path = storage_path("database_path")
+    audit_path = storage_path("audit_path")
+    if database_path is not None and database_path == audit_path:
+        raise ValueError("storage.database_path and storage.audit_path must be different files")
+
     return AgentConfig(
         HeartbeatConfig(max_steps),
         ConscienceConfig(mode),
         BodyConfig(workspace_root),
         BrainConfig(provider, model, base_url, float(timeout)),
+        StorageConfig(database_path, audit_path),
     )
 
 

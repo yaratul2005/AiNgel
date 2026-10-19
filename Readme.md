@@ -183,9 +183,13 @@ timeout = 30
 
 [conscience]
 mode = "sandbox"
+
+[storage]
+database_path = "data/aingel.sqlite3"
+audit_path = "data/audit.jsonl"
 ```
 
-Run one decision tick with `python -m aingel --config config.toml --prompt "Explain the current task."`. The live path requires `--prompt`; the default offline demo still uses the scripted brain. Ollama proposals pass through the same conscience and step budget as other brains. Tools are unavailable unless configured: for example, the workspace reader requires an explicit `[body].workspace_root`, is denied in sandbox mode, and can run in supervised mode. High-risk calls remain subject to the existing approval/deny policy; this CLI has no human approval UI.
+Run one decision tick with `python -m aingel --config config.toml --prompt "Explain the current task."`. The live path requires `--prompt`; the default offline demo still uses the scripted brain. If `[storage]` paths are omitted, the runtime uses `data/aingel.sqlite3` and `data/audit.jsonl` relative to the current working directory. Configured relative storage paths resolve from the config file's directory. SQLite retains the agent's action summaries across invocations; JSONL audit appends decision/outcome events without tool arguments or output text. Ollama proposals pass through the same conscience and step budget as other brains. Tools are unavailable unless configured: for example, the workspace reader requires an explicit `[body].workspace_root`, is denied in sandbox mode, and can run in supervised mode. High-risk calls remain subject to the existing approval/deny policy; this CLI has no human approval UI.
 
 ### Optional workspace reader
 

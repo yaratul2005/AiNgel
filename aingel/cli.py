@@ -123,11 +123,14 @@ def _run_prompt(config: AgentConfig, prompt: str) -> int:
         config.brain.base_url,
         timeout=config.brain.timeout,
     )
-    memory = MemoryStore(":memory:")
+    database_path = config.storage.database_path or Path("data/aingel.sqlite3")
+    audit_path = config.storage.audit_path or Path("data/audit.jsonl")
+    memory = MemoryStore(database_path)
     try:
-        soul = Soul(Identity("Aingel"), Affect(), memory)
+        agenda = Agenda(memory)
+        soul = Soul(Identity("Aingel"), Affect(), memory, agenda)
         tools = ToolRegistry.from_config(config)
-        audit = AuditLog()
+        audit = AuditLog(audit_path)
         budget = Budget(config.heartbeat.max_steps_per_session)
         result = run_soul_tick(
             brain,
