@@ -6,6 +6,8 @@ Aingel treats any language model as a swappable **brain** (knowledge and reasoni
 
 Swap the brain, keep the soul.
 
+> **Implementation status:** the repository currently provides an offline demonstration of the brain/tool interfaces, step budget, conscience decisions, and audit events. Persistent memory, a live model adapter, real tools, and sandbox isolation are not implemented yet. The demo does not access the network or modify files.
+
 ---
 
 ## Table of Contents
@@ -112,98 +114,56 @@ sense → update affect → recall memory → assemble context
 ## 5. Project Structure
 
 ```
-aingel/
-├── README.md
-├── LICENSE
+AiNgel/
+├── Readme.md
+├── PROJECT_PLAN.md
 ├── pyproject.toml
-├── AGENTS.md                # rules for AI contributors (see section 12)
-├── CONTRIBUTING.md
-├── config/
-│   ├── default.yaml         # brain choice, budgets, tick interval
-│   └── constitution.md      # the agent's values (human-reviewed)
-├── aingel/
-│   ├── __init__.py
-│   ├── heartbeat.py         # main life loop
-│   ├── brain/
-│   │   ├── base.py          # Brain interface
-│   │   ├── ollama.py
-│   │   ├── openai_compat.py
-│   │   └── llamacpp.py
-│   ├── soul/
-│   │   ├── identity.py      # loads name + constitution
-│   │   ├── affect.py        # hope, curiosity, frustration, trust
-│   │   ├── drives.py        # goals and motivations
-│   │   └── memory/
-│   │       ├── store.py     # SQLite storage
-│   │       ├── episodic.py  # what happened
-│   │       ├── semantic.py  # what it knows
-│   │       └── reflect.py   # summaries and lessons
-│   ├── body/
-│   │   ├── senses.py
-│   │   ├── tools/
-│   │   │   ├── base.py      # Tool interface
-│   │   │   ├── web_fetch.py
-│   │   │   ├── files.py
-│   │   │   └── shell.py     # sandbox only
-│   │   └── executor/        # Python first, C++ later
-│   └── conscience/
-│       ├── permissions.py   # tiered permissions
-│       ├── budgets.py       # cost, time, step limits
-│       ├── killswitch.py
-│       └── audit.py         # append-only log
-├── tests/
-├── docs/
-└── data/                    # runtime memory + logs (git-ignored)
+└── aingel/
+    ├── cli.py               # offline safety demonstration
+    ├── config.py            # TOML parsing and validation
+    ├── heartbeat.py         # single-tick action runner
+    ├── brain/               # vendor-neutral interface and fake brain
+    ├── body/                # tool contract and registry
+    └── conscience/           # permissions, budgets, kill switch, audit
 ```
+
+Memory, identity, model adapters, real tools, tests, and sandbox isolation are planned, not yet present.
 
 ---
 
 ## 6. Quickstart
 
-**Requirements:** Python 3.11+, Git, VS Code, and [Ollama](https://ollama.com) (or any OpenAI-compatible endpoint).
+**Requirements:** Python 3.11+.
 
 ```bash
 # 1. Clone and enter
-git clone https://github.com/<your-name>/aingel.git
+git clone https://github.com/yaratul2005/AiNgel.git
 cd aingel
 
 # 2. Virtual environment
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
-# 3. Install
-pip install -e ".[dev]"
+# 3. Install the package
+python -m pip install -e .
 
-# 4. Pull any local model (the brain is swappable)
-ollama pull llama3.2
-
-# 5. Configure
-cp config/default.example.yaml config/default.yaml
-
-# 6. Run in the safest mode (no external tools)
-python -m aingel --mode sandbox
+# 4. Run the offline safety demonstration
+python -m aingel --demo --max-steps 2
 ```
 
-**Recommended VS Code extensions:** Python, Pylance, Ruff, and (later) C/C++.
+The demo uses an in-memory fake brain and tools. It records one allowed action, denies a high-risk action in sandbox mode, and records the third proposal as blocked by the two-step budget. It does not execute external capabilities.
 
-**Config sketch (`config/default.yaml`):**
+An optional TOML config can set the mode and action budget:
 
-```yaml
-brain:
-  provider: ollama
-  model: llama3.2
-  base_url: http://localhost:11434
+```toml
+[heartbeat]
+max_steps_per_session = 2
 
-heartbeat:
-  tick_seconds: 30
-  max_steps_per_session: 100
-
-conscience:
-  mode: sandbox            # sandbox | supervised | autonomous
-  max_cost_usd: 1.00
-  require_approval: [shell, send_message, payment, delete_file]
-  allowed_domains: []      # empty = no internet
+[conscience]
+mode = "sandbox" # sandbox | supervised | autonomous (disabled)
 ```
+
+Run it with `python -m aingel --demo --config config.toml`. Autonomous mode is currently fail-closed. No live model provider or real-world tool is available in this release.
 
 ---
 
