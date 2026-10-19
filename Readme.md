@@ -6,7 +6,7 @@ Aingel treats any language model as a swappable **brain** (knowledge and reasoni
 
 Swap the brain, keep the soul.
 
-> **Implementation status:** the repository currently provides an offline multi-tick demonstration with identity, bounded affect, SQLite memory, conscience decisions, a step budget, and audit events. A live model adapter, real tools, approval interface, and OS sandbox isolation are not implemented yet. The demo does not access the network or modify files.
+> **Implementation status:** the repository provides an offline multi-tick demonstration with identity, bounded affect, SQLite memory, conscience decisions, a step budget, and audit events. A read-only workspace file tool is available for explicit integration. A live model adapter, approval interface, and OS sandbox isolation are not implemented. The demo does not access the network or modify files.
 
 ---
 
@@ -130,7 +130,7 @@ AiNgel/
 └── tests/                   # offline unit and integration tests
 ```
 
-Model adapters, real tools, approval flow, and OS sandbox isolation are planned, not yet present.
+Model adapters, write-capable tools, approval flow, and OS sandbox isolation are planned, not yet present. The optional `WorkspaceReadTool` only reads small UTF-8 files under an explicitly configured root; its path checks are not an OS sandbox.
 
 ---
 
@@ -166,7 +166,33 @@ max_steps_per_session = 2
 mode = "sandbox" # sandbox | supervised | autonomous (disabled)
 ```
 
-Run it with `python -m aingel --demo --config config.toml`. Autonomous mode is currently fail-closed. No live model provider or real-world tool is available in this release.
+Run it with `python -m aingel --demo --config config.toml`. Autonomous mode is currently fail-closed. No live model provider or external tool is enabled by default.
+
+### Optional workspace reader
+
+`WorkspaceReadTool` can be registered by an integrating application with a directory the operator has chosen to expose:
+
+```python
+from pathlib import Path
+
+from aingel.body.registry import ToolRegistry
+from aingel.body.tools.workspace_read import WorkspaceReadTool
+
+reader = WorkspaceReadTool(Path("./workspace"), max_bytes=32_768)
+tools = ToolRegistry([reader])
+```
+
+To enable it in the CLI demo, configure an explicit workspace root and supervised mode:
+
+```toml
+[conscience]
+mode = "supervised"
+
+[body]
+workspace_root = "./workspace" # relative to this config file
+```
+
+Then run `python -m aingel --demo --config config.toml --read-file notes.txt`. Without both the configured root and `--read-file`, the CLI does not invoke the reader. The tool accepts a relative `path`, rejects traversal and symlinks that resolve outside the configured root, and limits reads to 64 KiB by default. It is low-risk and available in supervised mode; sandbox mode intentionally rejects it because process-level path checks do not provide OS isolation. Successful tool text is returned separately as `TickResult.tool_outputs`, capped at 16,000 characters per result, then passed as labeled untrusted context into the next demo tick. Audit events omit the content.
 
 ---
 

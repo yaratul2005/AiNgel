@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from ..config import AgentConfig
 from .tools.base import Tool
+from .tools.workspace_read import WorkspaceReadTool
 
 
 class ToolRegistry:
@@ -16,6 +18,20 @@ class ToolRegistry:
             if not tool.spec.name or tool.spec.name in self._tools:
                 raise ValueError(f"Tool names must be non-empty and unique: {tool.spec.name!r}")
             self._tools[tool.spec.name] = tool
+
+    @classmethod
+    def from_config(cls, config: AgentConfig, extra_tools: Iterable[Tool] = ()) -> ToolRegistry:
+        """Build a registry, adding the workspace reader only when explicitly configured."""
+        tools = list(extra_tools)
+        if config.body.workspace_root is not None:
+            try:
+                tools.append(WorkspaceReadTool(config.body.workspace_root))
+            except OSError as error:
+                raise ValueError(
+                    f"Could not open configured workspace root "
+                    f"{config.body.workspace_root}: {error}"
+                ) from error
+        return cls(tools)
 
     def get(self, name: str) -> Tool | None:
         """Find a registered tool by name."""
