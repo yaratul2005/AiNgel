@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aingel"
+version = "0.1.0"
+description = "A model-agnostic framework for persistent AI agents"
+readme = "Readme.md"
+requires-python = ">=3.11"
+authors = [{ name = "Aingel contributors" }]
+dependencies = []
+
+[project.scripts]
+aingel = "aingel.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["aingel*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
