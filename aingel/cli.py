@@ -8,15 +8,19 @@ import sys
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
-from .brain.base import Response, ToolCall
-from .brain.fake import ScriptedBrain
 from .body.registry import ToolRegistry
 from .body.tools.base import Risk, ToolSpec
+from .brain.base import Response, ToolCall
+from .brain.fake import ScriptedBrain
 from .config import AgentConfig, load_config
 from .conscience.audit import AuditLog
 from .conscience.budgets import Budget
 from .conscience.permissions import Conscience
-from .heartbeat import run_tick
+from .heartbeat import run_soul_tick
+from .soul.affect import Affect
+from .soul.identity import Identity
+from .soul.memory.store import MemoryStore
+from .soul.state import Soul
 
 
 @dataclass
@@ -34,7 +38,7 @@ class _DemoTool:
 
 
 def _demo(config: AgentConfig) -> int:
-    """Run a fully offline example with an allowed and a denied proposal."""
+    """Run two fully offline ticks with persistent in-session memory."""
     safe_tool = _DemoTool(
         ToolSpec(
             "record_note",
@@ -50,32 +54,37 @@ def _demo(config: AgentConfig) -> int:
     brain = ScriptedBrain(
         [
             Response(
-                text="I will record a note, then propose a high-risk operation.",
+                text="First tick: record a note.",
+                tool_calls=[ToolCall("record_note", {"text": "hello"})],
+            ),
+            Response(
+                text="Second tick: consider a high-risk request and another note.",
                 tool_calls=[
-                    ToolCall("record_note", {"text": "hello"}),
                     ToolCall("delete_file", {"path": "example.txt"}),
                     ToolCall("record_note", {"text": "budget boundary"}),
                 ],
-            )
+            ),
         ]
     )
     audit = AuditLog()
-    result = run_tick(
-        brain,
-        ToolRegistry([safe_tool, dangerous_tool]),
-        Conscience(config.conscience.mode),
-        Budget(config.heartbeat.max_steps_per_session),
-        audit,
-        context="Demonstration only; no external tools are available.",
-    )
+    memory = MemoryStore(":memory:")
+    soul = Soul(Identity("Aingel"), Affect(), memory)
+    tools = ToolRegistry([safe_tool, dangerous_tool])
+    conscience = Conscience(config.conscience.mode)
+    budget = Budget(config.heartbeat.max_steps_per_session)
+    ticks = [
+        run_soul_tick(brain, tools, conscience, budget, audit, soul),
+        run_soul_tick(brain, tools, conscience, budget, audit, soul),
+    ]
     output = {
-        "text": result.response_text,
-        "actions": [asdict(action) for action in result.actions],
-        "stopped_reason": result.stopped_reason,
+        "ticks": [asdict(tick) for tick in ticks],
+        "second_tick_context": brain.contexts[1],
+        "memory": memory.summarize_recent(),
         "executions": {"record_note": safe_tool.calls, "delete_file": dangerous_tool.calls},
         "audit": [asdict(event) for event in audit.events],
     }
     print(json.dumps(output, default=str, indent=2))
+    memory.close()
     return 0
 
 
@@ -85,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", type=Path, help="Optional TOML configuration file")
     parser.add_argument("--mode", choices=["sandbox", "supervised", "autonomous"])
     parser.add_argument("--max-steps", type=int, help="Override the per-session action budget")
-    parser.add_argument("--demo", action="store_true", help="Run the offline safety demonstration")
+    parser.add_argument("--demo", action="store_true", help="Run the offline multi-tick demonstration")
     args = parser.parse_args(argv)
 
     try:

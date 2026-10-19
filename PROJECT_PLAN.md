@@ -8,7 +8,7 @@ At the baseline commit, the repository was a design document containing only `Re
 
 ## Current implementation status
 
-The initial offline foundation is now present: package metadata, TOML config validation, brain/tool contracts, a registry, a single-tick runner, a step budget, kill switch, conscience decisions, and an in-memory or JSONL audit log. The CLI demonstrates one allowed action, one denied high-risk proposal, and a budget boundary using in-memory tools. No persistent memory, live model adapter, external tool, approval UI, or OS sandbox is implemented. Tests and CI remain outstanding.
+The offline foundation and first soul slice are now present: package metadata, TOML config validation, brain/tool contracts, a registry, a tick runner, step budget, kill switch, conscience decisions, JSONL audit, identity, bounded affect, SQLite memory, and action reflection. The CLI carries memory across two fake-brain ticks. Tests cover the safety boundary and soul state; CI is configured to run Ruff and pytest on Python 3.11 through 3.13. A live model adapter, external tool, approval UI, and OS sandbox remain unimplemented.
 
 ## Success criteria
 

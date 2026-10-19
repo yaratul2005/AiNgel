@@ -6,7 +6,7 @@ Aingel treats any language model as a swappable **brain** (knowledge and reasoni
 
 Swap the brain, keep the soul.
 
-> **Implementation status:** the repository currently provides an offline demonstration of the brain/tool interfaces, step budget, conscience decisions, and audit events. Persistent memory, a live model adapter, real tools, and sandbox isolation are not implemented yet. The demo does not access the network or modify files.
+> **Implementation status:** the repository currently provides an offline multi-tick demonstration with identity, bounded affect, SQLite memory, conscience decisions, a step budget, and audit events. A live model adapter, real tools, approval interface, and OS sandbox isolation are not implemented yet. The demo does not access the network or modify files.
 
 ---
 
@@ -118,16 +118,19 @@ AiNgel/
 ├── Readme.md
 ├── PROJECT_PLAN.md
 ├── pyproject.toml
-└── aingel/
-    ├── cli.py               # offline safety demonstration
-    ├── config.py            # TOML parsing and validation
-    ├── heartbeat.py         # single-tick action runner
-    ├── brain/               # vendor-neutral interface and fake brain
-    ├── body/                # tool contract and registry
-    └── conscience/           # permissions, budgets, kill switch, audit
+├── .github/workflows/ci.yml # Python matrix, Ruff, and pytest
+├── aingel/
+│   ├── cli.py               # offline multi-tick demonstration
+│   ├── config.py            # TOML parsing and validation
+│   ├── heartbeat.py         # tick runner with conscience-gated actions
+│   ├── brain/               # vendor-neutral interface and fake brain
+│   ├── body/                # tool contract and registry
+│   ├── conscience/          # permissions, budgets, kill switch, audit
+│   └── soul/                # identity, affect, SQLite memory, reflection
+└── tests/                   # offline unit and integration tests
 ```
 
-Memory, identity, model adapters, real tools, tests, and sandbox isolation are planned, not yet present.
+Model adapters, real tools, approval flow, and OS sandbox isolation are planned, not yet present.
 
 ---
 
@@ -138,7 +141,7 @@ Memory, identity, model adapters, real tools, tests, and sandbox isolation are p
 ```bash
 # 1. Clone and enter
 git clone https://github.com/yaratul2005/AiNgel.git
-cd aingel
+cd AiNgel
 
 # 2. Virtual environment
 python -m venv .venv
@@ -147,11 +150,11 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 # 3. Install the package
 python -m pip install -e .
 
-# 4. Run the offline safety demonstration
+# 4. Run the offline multi-tick safety demonstration
 python -m aingel --demo --max-steps 2
 ```
 
-The demo uses an in-memory fake brain and tools. It records one allowed action, denies a high-risk action in sandbox mode, and records the third proposal as blocked by the two-step budget. It does not execute external capabilities.
+The demo uses an in-memory fake brain and tools. Across two ticks, it records an allowed action, carries its memory into the next tick, denies a high-risk action in sandbox mode, and blocks the next proposal at the two-step budget. It does not execute external capabilities.
 
 An optional TOML config can set the mode and action budget:
 
@@ -391,18 +394,20 @@ The agent may be capable and well-intentioned and still make ordinary mistakes: 
 ## 10. Roadmap
 
 **Phase 0: Foundation**
-- [ ] Repo, license, CI, linting
-- [ ] Brain interface and Ollama adapter
-- [ ] Config loader
+- [x] Python package foundation, CI, linting, and unit tests
+- [x] Brain interface and deterministic fake brain
+- [ ] License file
+- [ ] Ollama adapter
+- [x] Config loader
 
 **Phase 1: Soul**
-- [ ] Identity and constitution loader
-- [ ] SQLite memory (episodic, semantic)
-- [ ] Affect system with decay
-- [ ] Reflection step
+- [x] Identity and optional human-authored constitution loader
+- [x] SQLite memory for episodic, semantic, and reflective records
+- [x] Bounded affect system with decay
+- [x] Deterministic action reflection
 
 **Phase 2: Body (safe)**
-- [ ] Tool interface and registry
+- [x] Tool interface and registry
 - [ ] Workspace-only file tools
 - [ ] Sandboxed code execution
 
