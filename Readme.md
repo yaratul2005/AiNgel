@@ -6,7 +6,7 @@ Aingel treats any language model as a swappable **brain** (knowledge and reasoni
 
 Swap the brain, keep the soul.
 
-> **Implementation status:** the repository provides an offline multi-tick demonstration with identity, bounded affect, SQLite memory, conscience decisions, a step budget, and audit events. A read-only workspace file tool is available for explicit integration. A live model adapter, approval interface, and OS sandbox isolation are not implemented. The demo does not access the network or modify files.
+> **Implementation status:** the repository provides an offline multi-tick demonstration with identity, bounded affect, SQLite memory, explicit beliefs/goals/intentions, conscience decisions, a step budget, and audit events. A read-only workspace file tool is available for explicit integration. A live model adapter, approval interface, and OS sandbox isolation are not implemented. The demo does not access the network or modify files.
 
 ---
 
@@ -126,11 +126,13 @@ AiNgel/
 │   ├── brain/               # vendor-neutral interface and fake brain
 │   ├── body/                # tool contract and registry
 │   ├── conscience/          # permissions, budgets, kill switch, audit
-│   └── soul/                # identity, affect, SQLite memory, reflection
+│   └── soul/                # identity, affect, agenda, SQLite memory, reflection
 └── tests/                   # offline unit and integration tests
 ```
 
 Model adapters, write-capable tools, approval flow, and OS sandbox isolation are planned, not yet present. The optional `WorkspaceReadTool` only reads small UTF-8 files under an explicitly configured root; its path checks are not an OS sandbox.
+
+The persisted agenda is a deterministic state model: beliefs retain source and confidence, goals have explicit lifecycle states and priorities, and intentions hold a revisioned step list. Goal selection uses highest priority with insertion order as the tie-break. This is BDI-inspired task state, not evidence of subjective awareness; the model may propose updates, while application code validates and persists them.
 
 ---
 
@@ -154,7 +156,7 @@ python -m pip install -e .
 python -m aingel --demo --max-steps 2
 ```
 
-The demo uses an in-memory fake brain and tools. Across two ticks, it records an allowed action, carries its memory into the next tick, denies a high-risk action in sandbox mode, and blocks the next proposal at the two-step budget. It does not execute external capabilities.
+The demo uses an in-memory fake brain and tools. Across two ticks, it records an allowed action, carries memory and the active agenda into the next tick, denies a high-risk action in sandbox mode, and blocks the next proposal at the two-step budget. It does not execute external capabilities.
 
 An optional TOML config can set the mode and action budget:
 
@@ -449,7 +451,8 @@ The agent may be capable and well-intentioned and still make ordinary mistakes: 
 
 **Phase 5: Growth**
 - [ ] Embedding-based memory
-- [ ] Goal planning and self-directed drives
+- [x] Deterministic persisted beliefs, goals, and revisioned intentions
+- [ ] Model-assisted goal planning and self-directed drives (proposals remain untrusted)
 - [ ] MCP (Model Context Protocol) tool support
 - [ ] C++ executor for sandboxing and speed
 - [ ] Multi-agent communication

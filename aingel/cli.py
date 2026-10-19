@@ -18,6 +18,7 @@ from .conscience.budgets import Budget
 from .conscience.permissions import Conscience
 from .heartbeat import run_soul_tick
 from .soul.affect import Affect
+from .soul.agenda import Agenda
 from .soul.identity import Identity
 from .soul.memory.store import MemoryStore
 from .soul.state import Soul
@@ -73,7 +74,14 @@ def _demo(config: AgentConfig, read_file: str | None = None) -> int:
     )
     audit = AuditLog()
     memory = MemoryStore(":memory:")
-    soul = Soul(Identity("Aingel"), Affect(), memory)
+    agenda = Agenda(memory)
+    demo_goal = agenda.add_goal("Complete the offline safety demonstration", priority=1.0)
+    agenda.activate_next_goal()
+    agenda.commit_plan(
+        demo_goal.goal_id,
+        ("perform the first tick", "review action outcomes and safety gates"),
+    )
+    soul = Soul(Identity("Aingel"), Affect(), memory, agenda)
     tools = ToolRegistry.from_config(config, [safe_tool, dangerous_tool])
     conscience = Conscience(config.conscience.mode)
     budget = Budget(config.heartbeat.max_steps_per_session)

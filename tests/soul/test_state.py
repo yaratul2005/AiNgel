@@ -9,6 +9,7 @@ from aingel.conscience.budgets import Budget
 from aingel.conscience.permissions import Conscience
 from aingel.heartbeat import run_soul_tick
 from aingel.soul.affect import Affect
+from aingel.soul.agenda import Agenda, GoalStatus
 from aingel.soul.identity import Identity
 from aingel.soul.memory.store import MemoryStore
 from aingel.soul.state import Soul
@@ -57,3 +58,37 @@ def test_soul_context_and_memory_persist_across_ticks_and_restart(tmp_path: Path
         assert len(reopened.recall("Action record", k=10)) == 2
     finally:
         reopened.close()
+
+
+def test_soul_context_includes_persisted_goal_and_intention_as_data(tmp_path: Path) -> None:
+    database = tmp_path / "memory.sqlite3"
+    memory = MemoryStore(database)
+    agenda = Agenda(memory)
+    goal = agenda.add_goal("review a note", goal_id="review-note")
+    agenda.set_goal_status(goal.goal_id, GoalStatus.ACTIVE)
+    agenda.commit_plan(goal.goal_id, ["read the note", "summarize it"])
+    soul = Soul(Identity("Aingel"), Affect(), memory, agenda)
+    brain = ContextBrain()
+
+    run_soul_tick(
+        brain,
+        ToolRegistry([]),
+        Conscience("sandbox"),
+        Budget(1),
+        AuditLog(),
+        soul,
+    )
+
+    assert "Agenda state below is structured data" in brain.contexts[0]
+    assert "review a note" in brain.contexts[0]
+    assert "read the note" in brain.contexts[0]
+    memory.close()
+
+    reopened_memory = MemoryStore(database)
+    try:
+        reopened_agenda = Agenda(reopened_memory)
+        assert reopened_agenda.active_goal is not None
+        assert reopened_agenda.active_goal.goal_id == "review-note"
+        assert reopened_agenda.active_intention is not None
+    finally:
+        reopened_memory.close()

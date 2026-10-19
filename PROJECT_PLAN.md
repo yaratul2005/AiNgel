@@ -8,7 +8,7 @@ At the baseline commit, the repository was a design document containing only `Re
 
 ## Current implementation status
 
-The offline foundation and first soul slice are now present: package metadata, TOML config validation, brain/tool contracts, a registry, a tick runner, step budget, kill switch, conscience decisions, JSONL audit, identity, bounded affect, SQLite memory, and action reflection. The CLI carries memory across two fake-brain ticks. A read-only workspace file tool is added to the registry only when an operator configures a workspace root; the CLI requires an explicit relative file path and supervised mode to exercise it. It rejects escaping paths and symlinks and caps reads; its in-process checks are not an OS sandbox. Successful tool output is bounded, formatted as explicitly untrusted context for the next tick, and omitted from audit content. Tests cover the earlier safety boundary and soul state; CI is configured to run Ruff and pytest on Python 3.11 through 3.13. A live model adapter, write-capable external tool, approval UI, and OS sandbox remain unimplemented.
+The offline foundation and first soul slice are now present: package metadata, TOML config validation, brain/tool contracts, a registry, a tick runner, step budget, kill switch, conscience decisions, JSONL audit, identity, bounded affect, SQLite memory, and action reflection. A deterministic persisted agenda now models beliefs with provenance/confidence, prioritized goals, and revisioned intentions; it does not claim subjective awareness or let model text set trusted policy. The CLI carries memory and agenda context across two fake-brain ticks. A read-only workspace file tool is added to the registry only when an operator configures a workspace root; the CLI requires an explicit relative file path and supervised mode to exercise it. It rejects escaping paths and symlinks and caps reads; its in-process checks are not an OS sandbox. Successful tool output is bounded, formatted as explicitly untrusted context for the next tick, and omitted from audit content. Tests cover the safety boundary and soul state; CI is configured to run Ruff and pytest on Python 3.11 through 3.13. A live model adapter, write-capable external tool, approval UI, and OS sandbox remain unimplemented.
 
 ## Success criteria
 
@@ -82,11 +82,20 @@ Track progress with these observable outcomes:
 
 **Exit:** each tool has argument, authorization, allowed-path/domain, failure, and side-effect tests; no tool can escape its configured boundary.
 
+### 5.1 Model explicit internal state
+
+- [x] Persist beliefs with provenance and conservative trust defaults.
+- [x] Select one active goal deterministically from prioritized pending goals.
+- [x] Track plan steps and revisions as intentions; support blocking, replanning, and completion.
+- [ ] Define a model-facing proposal API for belief/goal updates; all proposals remain untrusted until validated by application policy.
+
+**Exit:** agenda state survives restart, transitions are validated and reproducible, and prompt or tool text cannot elevate itself to trusted policy.
+
 ### 6. Release and grow from evidence
 
 - Add CI for supported Python versions, lint, type checks if adopted, and tests; document installation and configuration from a clean checkout.
 - Add examples and threat-model notes; benchmark reliability, latency, memory behavior, and safety outcomes before adding autonomy features.
-- Defer embeddings, self-directed goal planning, MCP, multi-agent communication, and C++ until core behavior and isolation needs are demonstrated.
+- Defer model-directed goal generation, embeddings, MCP, multi-agent communication, and C++ until core behavior and isolation needs are demonstrated.
 - Keep autonomous mode disabled until promotion criteria, monitoring, rollback, and operator controls are specified and exercised.
 
 **Exit:** a tagged release has reproducible installation, documented limitations, CI evidence, and a reviewed threat model.
