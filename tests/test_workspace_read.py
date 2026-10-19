@@ -7,6 +7,7 @@ from aingel.body.tools.base import Risk, ToolSpec
 from aingel.body.tools.workspace_read import WorkspaceReadTool
 from aingel.brain.base import Response, ToolCall
 from aingel.brain.fake import ScriptedBrain
+from aingel.config import parse_config
 from aingel.conscience.audit import AuditLog
 from aingel.conscience.budgets import Budget
 from aingel.conscience.permissions import Conscience, Verdict
@@ -22,6 +23,17 @@ def test_reads_utf8_file_within_configured_workspace(tmp_path) -> None:
     assert tool.run(path="note.txt") == "hello"
     assert tool.spec.risk is Risk.LOW
     assert tool.spec.sandbox_safe is False
+
+
+def test_registry_enables_workspace_reader_only_when_root_is_configured(tmp_path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    assert ToolRegistry.from_config(parse_config({})).get("workspace_read") is None
+    configured = parse_config({"body": {"workspace_root": str(workspace)}})
+    assert isinstance(
+        ToolRegistry.from_config(configured).get("workspace_read"), WorkspaceReadTool
+    )
 
 
 @pytest.mark.parametrize("path", ["../outside.txt", "", " "])

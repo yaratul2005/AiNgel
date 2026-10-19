@@ -166,7 +166,7 @@ max_steps_per_session = 2
 mode = "sandbox" # sandbox | supervised | autonomous (disabled)
 ```
 
-Run it with `python -m aingel --demo --config config.toml`. Autonomous mode is currently fail-closed. No live model provider or external tool is enabled in the demo.
+Run it with `python -m aingel --demo --config config.toml`. Autonomous mode is currently fail-closed. No live model provider or external tool is enabled by default.
 
 ### Optional workspace reader
 
@@ -182,7 +182,17 @@ reader = WorkspaceReadTool(Path("./workspace"), max_bytes=32_768)
 tools = ToolRegistry([reader])
 ```
 
-The tool accepts a relative `path`, rejects traversal and symlinks that resolve outside the configured root, and limits reads to 32 KiB in this example. It is low-risk and available in supervised mode; sandbox mode intentionally rejects it because process-level path checks do not provide OS isolation. Successful tool text is returned separately as `TickResult.tool_outputs`, capped at 16,000 characters per result. An integrating caller can pass `result.untrusted_context()` as context to a later tick; the helper labels the content as untrusted JSON data, and audit events omit it.
+To enable it in the CLI demo, configure an explicit workspace root and supervised mode:
+
+```toml
+[conscience]
+mode = "supervised"
+
+[body]
+workspace_root = "./workspace" # relative to this config file
+```
+
+Then run `python -m aingel --demo --config config.toml --read-file notes.txt`. Without both the configured root and `--read-file`, the CLI does not invoke the reader. The tool accepts a relative `path`, rejects traversal and symlinks that resolve outside the configured root, and limits reads to 64 KiB by default. It is low-risk and available in supervised mode; sandbox mode intentionally rejects it because process-level path checks do not provide OS isolation. Successful tool text is returned separately as `TickResult.tool_outputs`, capped at 16,000 characters per result, then passed as labeled untrusted context into the next demo tick. Audit events omit the content.
 
 ---
 

@@ -23,11 +23,19 @@ class ConscienceConfig:
 
 
 @dataclass(frozen=True)
+class BodyConfig:
+    """Explicitly enabled tool boundaries."""
+
+    workspace_root: Path | None = None
+
+
+@dataclass(frozen=True)
 class AgentConfig:
     """Validated runtime configuration."""
 
     heartbeat: HeartbeatConfig = HeartbeatConfig()
     conscience: ConscienceConfig = ConscienceConfig()
+    body: BodyConfig = BodyConfig()
 
 
 def _section(data: dict[str, Any], name: str, allowed: set[str]) -> dict[str, Any]:
@@ -41,11 +49,11 @@ def _section(data: dict[str, Any], name: str, allowed: set[str]) -> dict[str, An
     return value
 
 
-def parse_config(data: dict[str, Any]) -> AgentConfig:
+def parse_config(data: dict[str, Any], *, base_dir: Path | None = None) -> AgentConfig:
     """Validate TOML-shaped data and return immutable settings."""
     if not isinstance(data, dict):
         raise TypeError("Configuration root must be a TOML table")
-    unknown = set(data) - {"heartbeat", "conscience"}
+    unknown = set(data) - {"heartbeat", "conscience", "body"}
     if unknown:
         raise ValueError(f"Unknown top-level setting(s): {', '.join(sorted(unknown))}")
 
@@ -58,7 +66,23 @@ def parse_config(data: dict[str, Any]) -> AgentConfig:
     mode = conscience.get("mode", "sandbox")
     if not isinstance(mode, str) or mode not in {"sandbox", "supervised", "autonomous"}:
         raise ValueError("conscience.mode must be sandbox, supervised, or autonomous")
-    return AgentConfig(HeartbeatConfig(max_steps), ConscienceConfig(mode))
+
+    body = _section(data, "body", {"workspace_root"})
+    workspace_value = body.get("workspace_root")
+    workspace_root: Path | None = None
+    if workspace_value is not None:
+        if not isinstance(workspace_value, str) or not workspace_value.strip():
+            raise ValueError("body.workspace_root must be a non-empty path string")
+        workspace_root = Path(workspace_value).expanduser()
+        if not workspace_root.is_absolute() and base_dir is not None:
+            workspace_root = base_dir / workspace_root
+        workspace_root = workspace_root.resolve()
+
+    return AgentConfig(
+        HeartbeatConfig(max_steps),
+        ConscienceConfig(mode),
+        BodyConfig(workspace_root),
+    )
 
 
 def load_config(path: Path) -> AgentConfig:
@@ -70,4 +94,4 @@ def load_config(path: Path) -> AgentConfig:
         raise ValueError(f"Could not read config file {path}: {error}") from error
     except tomllib.TOMLDecodeError as error:
         raise ValueError(f"Invalid TOML in {path}: {error}") from error
-    return parse_config(data)
+    return parse_config(data, base_dir=path.expanduser().resolve().parent)

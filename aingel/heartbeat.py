@@ -158,8 +158,14 @@ def run_soul_tick(
     soul: Soul,
     *,
     memory_query: str = "",
+    previous_result: TickResult | None = None,
 ) -> TickResult:
-    """Run one tick using persistent soul context and store action reflections."""
+    """Run one tick and optionally carry the previous tick's untrusted tool results."""
+    context = soul.build_context(memory_query)
+    if previous_result is not None:
+        output_context = previous_result.untrusted_context()
+        if output_context:
+            context = f"{context}\n{output_context}"
     result = run_tick(
         brain,
         tools,
@@ -167,7 +173,7 @@ def run_soul_tick(
         budget,
         audit,
         system=soul.system_prompt(),
-        context=soul.build_context(memory_query),
+        context=context,
     )
     for action in result.actions:
         soul.reflect_action(action.tool_name, action.verdict.value, action.outcome)
