@@ -87,9 +87,10 @@ Track progress with these observable outcomes:
 - [x] Persist beliefs with provenance and conservative trust defaults.
 - [x] Select one active goal deterministically from prioritized pending goals.
 - [x] Track plan steps and revisions as intentions; support blocking, replanning, and completion.
-- [ ] Define a model-facing proposal API for belief/goal updates; all proposals remain untrusted until validated by application policy.
+- [x] Define a bounded model-facing proposal API for belief/goal updates; heartbeat surfaces proposals but never applies them automatically.
+- [x] Require explicit application acceptance; accepted claims stay untrusted and goals stay pending.
 
-**Exit:** agenda state survives restart, transitions are validated and reproducible, and prompt or tool text cannot elevate itself to trusted policy.
+**Exit:** agenda state survives restart, transitions are validated and reproducible, and prompt or tool text cannot elevate itself to trusted policy. Model proposals are size-bounded, surfaced to the caller, and only persisted through an explicit application call.
 
 ### 6. Release and grow from evidence
 

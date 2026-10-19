@@ -9,6 +9,7 @@ from enum import StrEnum
 from typing import cast
 from uuid import uuid4
 
+from ..proposals import AgendaProposal, ProposalReceipt
 from .memory.store import MemoryStore
 
 AGENDA_STATE_KEY = "soul.agenda"
@@ -229,6 +230,49 @@ class Agenda:
         self._save(self._goals, beliefs, self._intentions)
         self._beliefs = beliefs
         return belief
+
+    def apply_proposal(self, proposal: AgendaProposal) -> ProposalReceipt:
+        """Explicitly accept bounded proposals as untrusted beliefs and pending goals.
+
+        This method is not called by the heartbeat. An integrating application must
+        choose when to apply model-proposed state; proposals cannot activate goals,
+        create intentions, or mark beliefs trusted.
+        """
+        if not isinstance(proposal, AgendaProposal):
+            raise TypeError("proposal must be an AgendaProposal")
+        if not proposal.beliefs and not proposal.goals:
+            return ProposalReceipt()
+
+        beliefs = tuple(
+            Belief(
+                belief_id=str(uuid4()),
+                content=item.content,
+                source="model",
+                confidence=item.confidence,
+                trusted=False,
+                created_at=datetime.now(UTC).isoformat(),
+            )
+            for item in proposal.beliefs
+        )
+        goals = tuple(
+            Goal(
+                goal_id=str(uuid4()),
+                description=item.description,
+                priority=item.priority,
+                status=GoalStatus.PENDING,
+                created_at=datetime.now(UTC).isoformat(),
+            )
+            for item in proposal.goals
+        )
+        next_beliefs = (*self._beliefs, *beliefs)
+        next_goals = (*self._goals, *goals)
+        self._save(next_goals, next_beliefs, self._intentions)
+        self._goals = next_goals
+        self._beliefs = next_beliefs
+        return ProposalReceipt(
+            belief_ids=tuple(item.belief_id for item in beliefs),
+            goal_ids=tuple(item.goal_id for item in goals),
+        )
 
     def activate_next_goal(self) -> Goal | None:
         """Activate the highest-priority pending goal; insertion order breaks ties."""

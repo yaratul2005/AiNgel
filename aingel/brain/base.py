@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Protocol
 
+from ..proposals import AgendaProposal
+
 
 @dataclass(frozen=True)
 class ToolCall:
@@ -16,10 +18,11 @@ class ToolCall:
 
 @dataclass(frozen=True)
 class Response:
-    """Text and tool calls returned by a brain."""
+    """Text, tool calls, and optional untrusted state proposals from a brain."""
 
     text: str = ""
     tool_calls: list[ToolCall] = field(default_factory=list)
+    agenda_proposal: AgendaProposal | None = None
 
 
 class Brain(Protocol):

@@ -132,7 +132,7 @@ AiNgel/
 
 Model adapters, write-capable tools, approval flow, and OS sandbox isolation are planned, not yet present. The optional `WorkspaceReadTool` only reads small UTF-8 files under an explicitly configured root; its path checks are not an OS sandbox.
 
-The persisted agenda is a deterministic state model: beliefs retain source and confidence, goals have explicit lifecycle states and priorities, and intentions hold a revisioned step list. Goal selection uses highest priority with insertion order as the tie-break. This is BDI-inspired task state, not evidence of subjective awareness; the model may propose updates, while application code validates and persists them.
+The persisted agenda is a deterministic state model: beliefs retain source and confidence, goals have explicit lifecycle states and priorities, and intentions hold a revisioned step list. Goal selection uses highest priority with insertion order as the tie-break. This is BDI-inspired task state, not evidence of subjective awareness. A brain can return a bounded `AgendaProposal` in its response; the heartbeat only surfaces it in `TickResult` and never applies it. An integrating application must explicitly call `Agenda.apply_proposal()`. Accepted beliefs are always marked untrusted with source `model`, and accepted goals remain pending; proposals cannot create intentions, activate goals, or change policy.
 
 ---
 

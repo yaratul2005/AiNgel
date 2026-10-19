@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from aingel.proposals import AgendaProposal, BeliefProposal, GoalProposal
 from aingel.soul.agenda import (
     Agenda,
     GoalStatus,
@@ -104,3 +105,33 @@ def test_completed_goal_cannot_be_reactivated(tmp_path: Path) -> None:
 
         with pytest.raises(ValueError, match="invalid goal transition"):
             agenda.set_goal_status(goal.goal_id, GoalStatus.ACTIVE)
+
+
+def test_explicitly_applied_model_proposal_stays_untrusted_and_inactive(
+    tmp_path: Path,
+) -> None:
+    with MemoryStore(tmp_path / "agenda.sqlite3") as store:
+        agenda = Agenda(store)
+        proposal = AgendaProposal(
+            beliefs=(BeliefProposal("A file may need review", 0.6),),
+            goals=(GoalProposal("Review the candidate file", 0.8),),
+        )
+
+        receipt = agenda.apply_proposal(proposal)
+
+        assert len(receipt.belief_ids) == 1
+        assert len(receipt.goal_ids) == 1
+        assert agenda.beliefs[0].source == "model"
+        assert agenda.beliefs[0].trusted is False
+        assert agenda.goals[0].status is GoalStatus.PENDING
+        assert agenda.active_goal is None
+        assert agenda.active_intention is None
+
+
+def test_proposal_validation_bounds_size_and_rejects_invalid_items() -> None:
+    with pytest.raises(ValueError, match="at most"):
+        AgendaProposal(goals=tuple(GoalProposal(f"goal {n}") for n in range(11)))
+    with pytest.raises(ValueError, match="exceeds"):
+        GoalProposal("x" * 1_001)
+    with pytest.raises(TypeError, match="GoalProposal"):
+        AgendaProposal(goals=("model says so",))  # type: ignore[arg-type]
