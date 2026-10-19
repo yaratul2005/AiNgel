@@ -8,7 +8,7 @@ At the baseline commit, the repository was a design document containing only `Re
 
 ## Current implementation status
 
-The offline foundation and first soul slice are now present: package metadata, TOML config validation, brain/tool contracts, a registry, a tick runner, step budget, kill switch, conscience decisions, JSONL audit, identity, bounded affect, SQLite memory, and action reflection. A deterministic persisted agenda now models beliefs with provenance/confidence, prioritized goals, and revisioned intentions; it does not claim subjective awareness or let model text set trusted policy. The CLI carries memory and agenda context across two fake-brain ticks. A read-only workspace file tool is added to the registry only when an operator configures a workspace root; the CLI requires an explicit relative file path and supervised mode to exercise it. It rejects escaping paths and symlinks and caps reads; its in-process checks are not an OS sandbox. Successful tool output is bounded, formatted as explicitly untrusted context for the next tick, and omitted from audit content. Tests cover the safety boundary and soul state; CI is configured to run Ruff and pytest on Python 3.11 through 3.13. A live model adapter, write-capable external tool, approval UI, and OS sandbox remain unimplemented.
+The offline foundation and first soul slice are now present: package metadata, TOML config validation, brain/tool contracts, a registry, a tick runner, step budget, kill switch, conscience decisions, JSONL audit, identity, bounded affect, SQLite memory, and action reflection. A deterministic persisted agenda now models beliefs with provenance/confidence, prioritized goals, and revisioned intentions; it does not claim subjective awareness or let model text set trusted policy. A bounded model-facing agenda proposal API surfaces suggestions without applying them automatically. The CLI carries memory and agenda context across two fake-brain ticks. An optional Ollama adapter now uses the standard-library HTTP client, maps declared tool specs and parses tool-call proposals, validates responses, and reports actionable transport/server failures; adapter tests mock all HTTP. It remains opt-in and the CLI demo stays offline. A read-only workspace file tool is added to the registry only when an operator configures a workspace root; the CLI requires an explicit relative file path and supervised mode to exercise it. It rejects escaping paths and symlinks and caps reads; its in-process checks are not an OS sandbox. Successful tool output is bounded, formatted as explicitly untrusted context for the next tick, and omitted from audit content. Tests cover the safety boundary and soul state; CI is configured to run Ruff and pytest on Python 3.11 through 3.13. Other model adapters, write-capable external tools, approval UI, and OS sandbox remain unimplemented.
 
 ## Success criteria
 
@@ -65,7 +65,7 @@ Track progress with these observable outcomes:
 
 ### 4. Add a model adapter as an optional integration
 
-- Implement Ollama behind the brain interface with timeouts, response validation, and actionable connection errors.
+- [x] Implement Ollama behind the brain interface with timeouts, tool-call mapping, response validation, and actionable connection errors.
 - Keep adapter tests mocked; add a manual integration check that is clearly optional.
 - Ensure model output can only propose calls; it cannot grant itself permissions or modify trusted policy/state.
 
