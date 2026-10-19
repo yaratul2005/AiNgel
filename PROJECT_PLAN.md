@@ -8,7 +8,7 @@ At the baseline commit, the repository was a design document containing only `Re
 
 ## Current implementation status
 
-The offline foundation and first soul slice are now present: package metadata, TOML config validation, brain/tool contracts, a registry, a tick runner, step budget, kill switch, conscience decisions, JSONL audit, identity, bounded affect, SQLite memory, and action reflection. The CLI carries memory across two fake-brain ticks. A read-only workspace file tool is added to the registry only when an operator configures a workspace root; the CLI requires an explicit relative file path and supervised mode to exercise it. It rejects escaping paths and symlinks and caps reads; its in-process checks are not an OS sandbox. Successful tool output is bounded, formatted as explicitly untrusted context for the next tick, and omitted from audit content. Tests cover the earlier safety boundary and soul state; CI is configured to run Ruff and pytest on Python 3.11 through 3.13. A live model adapter, write-capable external tool, approval UI, and OS sandbox remain unimplemented.
+The offline foundation and first soul slice are now present: package metadata, TOML config validation, brain/tool contracts, a registry, a tick runner, step budget, kill switch, conscience decisions, JSONL audit, identity, bounded affect, SQLite memory, and action reflection. A deterministic persisted agenda now models beliefs with provenance/confidence, prioritized goals, and revisioned intentions; it does not claim subjective awareness or let model text set trusted policy. A bounded model-facing agenda proposal API surfaces suggestions without applying them automatically. The CLI carries memory and agenda context across two fake-brain ticks. An optional Ollama adapter and explicit one-shot `--prompt` runtime now use the standard-library HTTP client, map declared tool specs, parse tool-call proposals, validate responses, and report actionable transport/server failures. The CLI keeps the offline demo as its default; configuration must explicitly select Ollama and supply a model. Live prompt runs now persist action summaries in a configurable SQLite database and append redacted decision/outcome events to configurable JSONL audit storage; tests cover persistence across invocations and confirm that file paths and content are absent from the audit. Mocked end-to-end CLI tests show the conscience still denies workspace reads in sandbox mode and allows configured low-risk reads in supervised mode. A read-only workspace file tool is added to the registry only when an operator configures a workspace root; the CLI demo requires an explicit relative file path and supervised mode to exercise it. It rejects escaping paths and symlinks and caps reads; its in-process checks are not an OS sandbox. Successful tool output is bounded, formatted as explicitly untrusted context for the next tick, and omitted from audit content. Tests cover the safety boundary and soul state; CI is configured to run Ruff and pytest on Python 3.11 through 3.13. Other model adapters, write-capable external tools, approval UI, and OS sandbox remain unimplemented.
 
 ## Success criteria
 
@@ -65,7 +65,8 @@ Track progress with these observable outcomes:
 
 ### 4. Add a model adapter as an optional integration
 
-- Implement Ollama behind the brain interface with timeouts, response validation, and actionable connection errors.
+- [x] Implement Ollama behind the brain interface with timeouts, tool-call mapping, response validation, and actionable connection errors.
+- [x] Add explicit one-shot CLI configuration for Ollama and mocked end-to-end conscience-gate coverage; keep the offline demo as the default.
 - Keep adapter tests mocked; add a manual integration check that is clearly optional.
 - Ensure model output can only propose calls; it cannot grant itself permissions or modify trusted policy/state.
 
@@ -82,11 +83,21 @@ Track progress with these observable outcomes:
 
 **Exit:** each tool has argument, authorization, allowed-path/domain, failure, and side-effect tests; no tool can escape its configured boundary.
 
+### 5.1 Model explicit internal state
+
+- [x] Persist beliefs with provenance and conservative trust defaults.
+- [x] Select one active goal deterministically from prioritized pending goals.
+- [x] Track plan steps and revisions as intentions; support blocking, replanning, and completion.
+- [x] Define a bounded model-facing proposal API for belief/goal updates; heartbeat surfaces proposals but never applies them automatically.
+- [x] Require explicit application acceptance; accepted claims stay untrusted and goals stay pending.
+
+**Exit:** agenda state survives restart, transitions are validated and reproducible, and prompt or tool text cannot elevate itself to trusted policy. Model proposals are size-bounded, surfaced to the caller, and only persisted through an explicit application call.
+
 ### 6. Release and grow from evidence
 
 - Add CI for supported Python versions, lint, type checks if adopted, and tests; document installation and configuration from a clean checkout.
 - Add examples and threat-model notes; benchmark reliability, latency, memory behavior, and safety outcomes before adding autonomy features.
-- Defer embeddings, self-directed goal planning, MCP, multi-agent communication, and C++ until core behavior and isolation needs are demonstrated.
+- Defer model-directed goal generation, embeddings, MCP, multi-agent communication, and C++ until core behavior and isolation needs are demonstrated.
 - Keep autonomous mode disabled until promotion criteria, monitoring, rollback, and operator controls are specified and exercised.
 
 **Exit:** a tagged release has reproducible installation, documented limitations, CI evidence, and a reviewed threat model.

@@ -12,12 +12,14 @@ from .body.registry import ToolRegistry
 from .body.tools.base import Risk, ToolSpec
 from .brain.base import Response, ToolCall
 from .brain.fake import ScriptedBrain
+from .brain.ollama import OllamaBrain, OllamaError
 from .config import AgentConfig, load_config
 from .conscience.audit import AuditLog
 from .conscience.budgets import Budget
 from .conscience.permissions import Conscience
 from .heartbeat import run_soul_tick
 from .soul.affect import Affect
+from .soul.agenda import Agenda
 from .soul.identity import Identity
 from .soul.memory.store import MemoryStore
 from .soul.state import Soul
@@ -73,7 +75,14 @@ def _demo(config: AgentConfig, read_file: str | None = None) -> int:
     )
     audit = AuditLog()
     memory = MemoryStore(":memory:")
-    soul = Soul(Identity("Aingel"), Affect(), memory)
+    agenda = Agenda(memory)
+    demo_goal = agenda.add_goal("Complete the offline safety demonstration", priority=1.0)
+    agenda.activate_next_goal()
+    agenda.commit_plan(
+        demo_goal.goal_id,
+        ("perform the first tick", "review action outcomes and safety gates"),
+    )
+    soul = Soul(Identity("Aingel"), Affect(), memory, agenda)
     tools = ToolRegistry.from_config(config, [safe_tool, dangerous_tool])
     conscience = Conscience(config.conscience.mode)
     budget = Budget(config.heartbeat.max_steps_per_session)
@@ -100,13 +109,66 @@ def _demo(config: AgentConfig, read_file: str | None = None) -> int:
     return 0
 
 
+def _run_prompt(config: AgentConfig, prompt: str) -> int:
+    """Run one explicitly requested Ollama tick through the normal safety gates."""
+    if config.brain.provider != "ollama" or config.brain.model is None:
+        raise ValueError(
+            "--prompt requires [brain] provider = 'ollama' and a configured brain.model"
+        )
+    if not prompt.strip():
+        raise ValueError("--prompt must contain non-whitespace text")
+
+    brain = OllamaBrain(
+        config.brain.model,
+        config.brain.base_url,
+        timeout=config.brain.timeout,
+    )
+    database_path = config.storage.database_path or Path("data/aingel.sqlite3")
+    audit_path = config.storage.audit_path or Path("data/audit.jsonl")
+    memory = MemoryStore(database_path)
+    try:
+        agenda = Agenda(memory)
+        soul = Soul(Identity("Aingel"), Affect(), memory, agenda)
+        tools = ToolRegistry.from_config(config)
+        audit = AuditLog(audit_path)
+        budget = Budget(config.heartbeat.max_steps_per_session)
+        result = run_soul_tick(
+            brain,
+            tools,
+            Conscience(config.conscience.mode),
+            budget,
+            audit,
+            soul,
+            memory_query=prompt,
+            user_input=prompt,
+        )
+        output = {
+            "tick": asdict(result),
+            "budget": {
+                "max_steps": budget.max_steps,
+                "steps_used": budget.steps_used,
+            },
+            "audit": [asdict(event) for event in audit.events],
+        }
+        print(json.dumps(output, default=str, indent=2))
+        return 0
+    finally:
+        memory.close()
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Parse CLI arguments and run the offline demonstration."""
+    """Run the offline demo or one explicitly configured Ollama prompt."""
     parser = argparse.ArgumentParser(prog="aingel", description="Aingel agent framework")
     parser.add_argument("--config", type=Path, help="Optional TOML configuration file")
     parser.add_argument("--mode", choices=["sandbox", "supervised", "autonomous"])
     parser.add_argument("--max-steps", type=int, help="Override the per-session action budget")
-    parser.add_argument("--demo", action="store_true", help="Run the offline multi-tick demonstration")
+    operation = parser.add_mutually_exclusive_group()
+    operation.add_argument(
+        "--demo", action="store_true", help="Run the offline multi-tick demonstration"
+    )
+    operation.add_argument(
+        "--prompt", help="Run one Ollama-backed tick (requires explicit [brain] configuration)"
+    )
     parser.add_argument(
         "--read-file",
         help="Read this relative file from [body].workspace_root (requires supervised mode)",
@@ -124,14 +186,21 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.mode is not None:
             config = replace(config, conscience=replace(config.conscience, mode=args.mode))
-        if not args.demo:
-            parser.error("this release supports only --demo (offline; no live model)")
         if args.read_file is not None:
+            if not args.demo:
+                raise ValueError("--read-file is only available in the offline --demo")
             if config.body.workspace_root is None:
                 raise ValueError("--read-file requires [body].workspace_root in the config")
             if config.conscience.mode != "supervised":
                 raise ValueError("--read-file requires conscience.mode = 'supervised'")
-        return _demo(config, args.read_file)
+        if args.demo:
+            return _demo(config, args.read_file)
+        if args.prompt is not None:
+            return _run_prompt(config, args.prompt)
+        parser.error("choose --demo (offline) or --prompt (configured Ollama)")
     except ValueError as error:
         print(f"aingel: {error}", file=sys.stderr)
         return 2
+    except OllamaError as error:
+        print(f"aingel: {error}", file=sys.stderr)
+        return 1

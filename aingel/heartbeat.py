@@ -10,6 +10,7 @@ from .brain.base import Brain, Response, ToolCall
 from .conscience.audit import AuditLog
 from .conscience.budgets import Budget
 from .conscience.permissions import Conscience, Verdict
+from .proposals import AgendaProposal
 from .soul.state import Soul
 
 
@@ -39,6 +40,7 @@ class TickResult:
     response_text: str = ""
     actions: list[ActionResult] = field(default_factory=list)
     tool_outputs: list[UntrustedToolOutput] = field(default_factory=list)
+    agenda_proposal: AgendaProposal | None = None
     stopped_reason: str | None = None
 
     def untrusted_context(self) -> str:
@@ -79,7 +81,14 @@ def run_tick(
     response = brain.think(system, context, tools.specs())
     if not isinstance(response, Response):
         raise TypeError("Brain.think() must return a Response")
-    result = TickResult(response_text=response.text)
+    if response.agenda_proposal is not None and not isinstance(
+        response.agenda_proposal, AgendaProposal
+    ):
+        raise TypeError("Brain returned a malformed agenda proposal")
+    result = TickResult(
+        response_text=response.text,
+        agenda_proposal=response.agenda_proposal,
+    )
 
     for call in response.tool_calls:
         if (
@@ -158,10 +167,15 @@ def run_soul_tick(
     soul: Soul,
     *,
     memory_query: str = "",
+    user_input: str | None = None,
     previous_result: TickResult | None = None,
 ) -> TickResult:
-    """Run one tick and optionally carry the previous tick's untrusted tool results."""
+    """Run one tick with optional operator input and prior untrusted tool results."""
     context = soul.build_context(memory_query)
+    if user_input is not None:
+        if not isinstance(user_input, str):
+            raise TypeError("user_input must be a string")
+        context += "\nOperator request:\n" + user_input
     if previous_result is not None:
         output_context = previous_result.untrusted_context()
         if output_context:

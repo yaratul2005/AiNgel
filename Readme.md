@@ -6,7 +6,7 @@ Aingel treats any language model as a swappable **brain** (knowledge and reasoni
 
 Swap the brain, keep the soul.
 
-> **Implementation status:** the repository provides an offline multi-tick demonstration with identity, bounded affect, SQLite memory, conscience decisions, a step budget, and audit events. A read-only workspace file tool is available for explicit integration. A live model adapter, approval interface, and OS sandbox isolation are not implemented. The demo does not access the network or modify files.
+> **Implementation status:** the repository provides an offline multi-tick demonstration with identity, bounded affect, SQLite memory, explicit beliefs/goals/intentions, conscience decisions, a step budget, and audit events. An optional Ollama adapter and read-only workspace file tool are available for explicit integration. Approval UI and OS sandbox isolation are not implemented. The default demo does not access the network or modify files.
 
 ---
 
@@ -123,14 +123,16 @@ AiNgel/
 │   ├── cli.py               # offline multi-tick demonstration
 │   ├── config.py            # TOML parsing and validation
 │   ├── heartbeat.py         # tick runner with conscience-gated actions
-│   ├── brain/               # vendor-neutral interface and fake brain
+│   ├── brain/               # vendor-neutral interface, fake brain, optional Ollama adapter
 │   ├── body/                # tool contract and registry
 │   ├── conscience/          # permissions, budgets, kill switch, audit
-│   └── soul/                # identity, affect, SQLite memory, reflection
+│   └── soul/                # identity, affect, agenda, SQLite memory, reflection
 └── tests/                   # offline unit and integration tests
 ```
 
-Model adapters, write-capable tools, approval flow, and OS sandbox isolation are planned, not yet present. The optional `WorkspaceReadTool` only reads small UTF-8 files under an explicitly configured root; its path checks are not an OS sandbox.
+Additional model adapters, write-capable tools, approval flow, and OS sandbox isolation are planned. The optional `WorkspaceReadTool` only reads small UTF-8 files under an explicitly configured root; its path checks are not an OS sandbox. `OllamaBrain` uses the standard library and is only invoked when an integrating application selects it; the default CLI demo remains offline.
+
+The persisted agenda is a deterministic state model: beliefs retain source and confidence, goals have explicit lifecycle states and priorities, and intentions hold a revisioned step list. Goal selection uses highest priority with insertion order as the tie-break. This is BDI-inspired task state, not evidence of subjective awareness. A brain can return a bounded `AgendaProposal` in its response; the heartbeat only surfaces it in `TickResult` and never applies it. An integrating application must explicitly call `Agenda.apply_proposal()`. Accepted beliefs are always marked untrusted with source `model`, and accepted goals remain pending; proposals cannot create intentions, activate goals, or change policy.
 
 ---
 
@@ -154,7 +156,7 @@ python -m pip install -e .
 python -m aingel --demo --max-steps 2
 ```
 
-The demo uses an in-memory fake brain and tools. Across two ticks, it records an allowed action, carries its memory into the next tick, denies a high-risk action in sandbox mode, and blocks the next proposal at the two-step budget. It does not execute external capabilities.
+The demo uses an in-memory fake brain and tools. Across two ticks, it records an allowed action, carries memory and the active agenda into the next tick, denies a high-risk action in sandbox mode, and blocks the next proposal at the two-step budget. It does not execute external capabilities.
 
 An optional TOML config can set the mode and action budget:
 
@@ -167,6 +169,27 @@ mode = "sandbox" # sandbox | supervised | autonomous (disabled)
 ```
 
 Run it with `python -m aingel --demo --config config.toml`. Autonomous mode is currently fail-closed. No live model provider or external tool is enabled by default.
+
+### Optional one-shot Ollama run
+
+Install and start [Ollama](https://ollama.com), then pull a model such as `llama3.2`. Configure an explicit provider and model:
+
+```toml
+[brain]
+provider = "ollama"
+model = "llama3.2"
+base_url = "http://localhost:11434"
+timeout = 30
+
+[conscience]
+mode = "sandbox"
+
+[storage]
+database_path = "data/aingel.sqlite3"
+audit_path = "data/audit.jsonl"
+```
+
+Run one decision tick with `python -m aingel --config config.toml --prompt "Explain the current task."`. The live path requires `--prompt`; the default offline demo still uses the scripted brain. If `[storage]` paths are omitted, the runtime uses `data/aingel.sqlite3` and `data/audit.jsonl` relative to the current working directory. Configured relative storage paths resolve from the config file's directory. SQLite retains the agent's action summaries across invocations; JSONL audit appends decision/outcome events without tool arguments or output text. Ollama proposals pass through the same conscience and step budget as other brains. Tools are unavailable unless configured: for example, the workspace reader requires an explicit `[body].workspace_root`, is denied in sandbox mode, and can run in supervised mode. High-risk calls remain subject to the existing approval/deny policy; this CLI has no human approval UI.
 
 ### Optional workspace reader
 
@@ -223,31 +246,14 @@ class Brain:
 ```
 
 ```python
-# aingel/brain/ollama.py (minimal example)
-import json, urllib.request
-from .base import Brain, Response
+from aingel.brain.ollama import OllamaBrain
 
-class OllamaBrain(Brain):
-    def __init__(self, model: str, base_url: str = "http://localhost:11434"):
-        self.model, self.base_url = model, base_url
-
-    def think(self, system, context, tools):
-        body = json.dumps({
-            "model": self.model,
-            "stream": False,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": context},
-            ],
-        }).encode()
-        req = urllib.request.Request(
-            f"{self.base_url}/api/chat", body,
-            {"Content-Type": "application/json"},
-        )
-        with urllib.request.urlopen(req) as r:
-            data = json.load(r)
-        return Response(text=data["message"]["content"])
+brain = OllamaBrain(model="llama3.2", base_url="http://localhost:11434", timeout=60)
+response = brain.think(system="You are Aingel.", context="Summarize the current goal.", tools=[])
+print(response.text)
 ```
+
+Install and start Ollama separately, then make the selected model available with `ollama pull llama3.2`. The adapter calls `POST /api/chat` without streaming, maps Aingel tool specs to Ollama function tools, and returns tool calls as proposals; every proposed call still passes through the conscience. Connection errors include setup guidance. Adapter tests mock HTTP and never require a model server. The CLI demo does not select this adapter automatically.
 
 ### 7.2 Affect
 
@@ -423,7 +429,7 @@ The agent may be capable and well-intentioned and still make ordinary mistakes: 
 - [x] Python package foundation, CI, linting, and unit tests
 - [x] Brain interface and deterministic fake brain
 - [ ] License file
-- [ ] Ollama adapter
+- [x] Optional Ollama chat/tool-call adapter (standard library; mocked tests)
 - [x] Config loader
 
 **Phase 1: Soul**
@@ -449,7 +455,8 @@ The agent may be capable and well-intentioned and still make ordinary mistakes: 
 
 **Phase 5: Growth**
 - [ ] Embedding-based memory
-- [ ] Goal planning and self-directed drives
+- [x] Deterministic persisted beliefs, goals, and revisioned intentions
+- [ ] Model-assisted goal planning and self-directed drives (proposals remain untrusted)
 - [ ] MCP (Model Context Protocol) tool support
 - [ ] C++ executor for sandboxing and speed
 - [ ] Multi-agent communication

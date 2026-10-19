@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -10,7 +11,7 @@ from pathlib import Path
 from typing import Self
 
 MEMORY_KINDS = {"episodic", "semantic", "reflective"}
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,13 @@ class MemoryStore:
             )"""
         )
         self._connection.execute("CREATE INDEX IF NOT EXISTS memories_created_at ON memories(id)")
+        self._connection.execute(
+            """CREATE TABLE IF NOT EXISTS agent_state (
+                state_key TEXT PRIMARY KEY,
+                payload TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )"""
+        )
         self._connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._connection.commit()
 
@@ -96,6 +104,38 @@ class MemoryStore:
             "SELECT kind, text FROM memories ORDER BY id DESC LIMIT ?", (n,)
         ).fetchall()
         return "\n".join(f"[{row['kind']}] {row['text']}" for row in reversed(rows))
+
+    def save_state(self, state_key: str, payload: dict[str, object]) -> None:
+        """Atomically replace one versioned structured state snapshot."""
+        if not state_key.strip():
+            raise ValueError("state_key must not be empty")
+        serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        self._connection.execute(
+            """INSERT INTO agent_state(state_key, payload, updated_at)
+               VALUES (?, ?, ?)
+               ON CONFLICT(state_key) DO UPDATE SET
+                   payload = excluded.payload,
+                   updated_at = excluded.updated_at""",
+            (state_key, serialized, datetime.now(UTC).isoformat()),
+        )
+        self._connection.commit()
+
+    def load_state(self, state_key: str) -> dict[str, object] | None:
+        """Load one structured snapshot, rejecting corrupt or non-object payloads."""
+        row = self._connection.execute(
+            "SELECT payload FROM agent_state WHERE state_key = ?", (state_key,)
+        ).fetchone()
+        if row is None:
+            return None
+        try:
+            payload = json.loads(row["payload"])
+        except json.JSONDecodeError as error:
+            raise RuntimeError(f"Stored state {state_key!r} is not valid JSON") from error
+        if not isinstance(payload, dict):
+            raise RuntimeError(  # noqa: TRY004 - malformed persisted state is a storage error
+                f"Stored state {state_key!r} must be a JSON object"
+            )
+        return payload
 
     def close(self) -> None:
         """Close the underlying database connection."""
