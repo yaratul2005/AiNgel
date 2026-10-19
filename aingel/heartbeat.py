@@ -167,10 +167,15 @@ def run_soul_tick(
     soul: Soul,
     *,
     memory_query: str = "",
+    user_input: str | None = None,
     previous_result: TickResult | None = None,
 ) -> TickResult:
-    """Run one tick and optionally carry the previous tick's untrusted tool results."""
+    """Run one tick with optional operator input and prior untrusted tool results."""
     context = soul.build_context(memory_query)
+    if user_input is not None:
+        if not isinstance(user_input, str):
+            raise TypeError("user_input must be a string")
+        context += "\nOperator request:\n" + user_input
     if previous_result is not None:
         output_context = previous_result.untrusted_context()
         if output_context:

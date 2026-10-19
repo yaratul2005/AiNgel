@@ -170,6 +170,23 @@ mode = "sandbox" # sandbox | supervised | autonomous (disabled)
 
 Run it with `python -m aingel --demo --config config.toml`. Autonomous mode is currently fail-closed. No live model provider or external tool is enabled by default.
 
+### Optional one-shot Ollama run
+
+Install and start [Ollama](https://ollama.com), then pull a model such as `llama3.2`. Configure an explicit provider and model:
+
+```toml
+[brain]
+provider = "ollama"
+model = "llama3.2"
+base_url = "http://localhost:11434"
+timeout = 30
+
+[conscience]
+mode = "sandbox"
+```
+
+Run one decision tick with `python -m aingel --config config.toml --prompt "Explain the current task."`. The live path requires `--prompt`; the default offline demo still uses the scripted brain. Ollama proposals pass through the same conscience and step budget as other brains. Tools are unavailable unless configured: for example, the workspace reader requires an explicit `[body].workspace_root`, is denied in sandbox mode, and can run in supervised mode. High-risk calls remain subject to the existing approval/deny policy; this CLI has no human approval UI.
+
 ### Optional workspace reader
 
 `WorkspaceReadTool` can be registered by an integrating application with a directory the operator has chosen to expose:

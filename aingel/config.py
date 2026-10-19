@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import math
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 
 @dataclass(frozen=True)
@@ -30,12 +32,23 @@ class BodyConfig:
 
 
 @dataclass(frozen=True)
+class BrainConfig:
+    """Optional external reasoning backend settings."""
+
+    provider: str | None = None
+    model: str | None = None
+    base_url: str = "http://localhost:11434"
+    timeout: float = 30.0
+
+
+@dataclass(frozen=True)
 class AgentConfig:
     """Validated runtime configuration."""
 
     heartbeat: HeartbeatConfig = HeartbeatConfig()
     conscience: ConscienceConfig = ConscienceConfig()
     body: BodyConfig = BodyConfig()
+    brain: BrainConfig = BrainConfig()
 
 
 def _section(data: dict[str, Any], name: str, allowed: set[str]) -> dict[str, Any]:
@@ -53,7 +66,7 @@ def parse_config(data: dict[str, Any], *, base_dir: Path | None = None) -> Agent
     """Validate TOML-shaped data and return immutable settings."""
     if not isinstance(data, dict):
         raise TypeError("Configuration root must be a TOML table")
-    unknown = set(data) - {"heartbeat", "conscience", "body"}
+    unknown = set(data) - {"heartbeat", "conscience", "body", "brain"}
     if unknown:
         raise ValueError(f"Unknown top-level setting(s): {', '.join(sorted(unknown))}")
 
@@ -78,10 +91,45 @@ def parse_config(data: dict[str, Any], *, base_dir: Path | None = None) -> Agent
             workspace_root = base_dir / workspace_root
         workspace_root = workspace_root.resolve()
 
+    brain = _section(data, "brain", {"provider", "model", "base_url", "timeout"})
+    provider = brain.get("provider")
+    model = brain.get("model")
+    base_url = brain.get("base_url", "http://localhost:11434")
+    timeout = brain.get("timeout", 30.0)
+    if provider is None:
+        if model is not None or "base_url" in brain or "timeout" in brain:
+            raise ValueError("brain.provider = 'ollama' is required when brain settings are supplied")
+    elif provider != "ollama":
+        raise ValueError("brain.provider must be 'ollama'")
+    if model is not None and (not isinstance(model, str) or not model.strip()):
+        raise ValueError("brain.model must be a non-empty string")
+    if provider == "ollama" and model is None:
+        raise ValueError("brain.model is required when brain.provider = 'ollama'")
+    if not isinstance(base_url, str) or not base_url.strip():
+        raise ValueError("brain.base_url must be a non-empty URL")
+    parsed_brain_url = urlsplit(base_url.strip())
+    if (
+        parsed_brain_url.scheme not in {"http", "https"}
+        or not parsed_brain_url.netloc
+        or parsed_brain_url.username is not None
+        or parsed_brain_url.password is not None
+        or parsed_brain_url.query
+        or parsed_brain_url.fragment
+    ):
+        raise ValueError("brain.base_url must be an http(s) URL without credentials or query")
+    if (
+        isinstance(timeout, bool)
+        or not isinstance(timeout, (int, float))
+        or not math.isfinite(timeout)
+        or timeout <= 0
+    ):
+        raise ValueError("brain.timeout must be a positive number of seconds")
+
     return AgentConfig(
         HeartbeatConfig(max_steps),
         ConscienceConfig(mode),
         BodyConfig(workspace_root),
+        BrainConfig(provider, model, base_url, float(timeout)),
     )
 
 
